@@ -57,27 +57,27 @@ else
         MAX_CELL = 10000;
     end
     num_im = numel(contents);
-    
+
     if CONST.parallel.show_status
         h = waitbar( 0, 'Making Cells.');
         cleanup = onCleanup( @()( delete( h ) ) );
     else
         h = [];
     end
-    
+
     clist = [];
     [setter,clist.def3D]  = clistSetter ();
     clist.def = setter(:,1)';
     tmpFields = setter(:,2)';
     clist3d_ind = find([setter{:,4}]);
-    
-    death_ind = find([setter{:,3}]); % death fields : updated in every frame 
+
+    death_ind = find([setter{:,3}]); % death fields : updated in every frame
     clist_tmp = nan( MAX_CELL, numel( clist.def));
     clist_3D  = nan( MAX_CELL, numel( clist.def3D), num_im );
 
     clist_tmp(:,1) = 0;
-    
-    
+
+
     % calculating indexes of values used during calculations
     lengthFields = find(strcmp(tmpFields,'data_c.regs.L1'));
     index_lold = intersect(lengthFields,death_ind);
@@ -88,8 +88,8 @@ else
     index_ehist = find(strcmp(tmpFields,'error_frame'));
     % loop through all the images (*err.mat files)
     for i = 1:num_im
-        
-        
+
+
         data_c = loaderInternal([dirname,contents(i).name]);
         if ~isempty( data_c.CellA)
             % record the number of cell neighbors
@@ -136,6 +136,9 @@ else
             pole_age  = drill(data_c.CellA,'.pole.op_age');
             fl1sum = drill(data_c.CellA,'.fl1.sum');
             fl2sum  = drill(data_c.CellA,'.fl2.sum');
+            % gchure added normalization variables 2018-02-19
+            fl1bg = drill(data_c.CellA, '.fl1.bg');
+            fl2bg = drill(data_c.CellA, '.fl2.bg');
             Area = drill(data_c.CellA,'.coord.A');
             xpos = drill(data_c.CellA,'.coord.rcm(1)');
             ypos = drill(data_c.CellA,'.coord.rcm(2)');
@@ -250,24 +253,24 @@ else
                 disp([header, 'Clist frame: ',num2str(i),' of ',num2str(num_im)]);
             end
         end
-        
-        
+
+
     end
-    
-    
+
+
     if CONST.parallel.show_status
         close(h);
     end
-    
+
     % removes cells with 0 cell id
     clist.data   = clist_tmp(logical(clist_tmp(:,1)),:);
     clist.data3D = clist_3D(clist.data(:,1),:,:);
 
     clist = gateTool( clist, 'add3Dt' );
-    
+
     %add3dtime stuff
     len_time_ind = grabClistIndex(clist, 'Long axis (L)', 1);
-    
+
     ss = size( clist.data3D );
     if numel(ss) == 2
         ss(3) = 1;
@@ -275,11 +278,11 @@ else
     len  = reshape( ~isnan(squeeze(clist.data3D(:,len_time_ind(1),:))),[ss(1),ss(3)]);
     age = cumsum( len, 2 );
     age(~len) = nan;
-    
+
     age_rel = age;
-    age_rel = age./(max(age,[],2)*ones([1,size(age,2)]));    
+    age_rel = age./(max(age,[],2)*ones([1,size(age,2)]));
     time = ones([ss(1),1])*(1:ss(3));
-    
+
     len_0_ind = grabClistIndex(clist, 'Long axis (L) birth');
     len_0 = clist.data(:,len_0_ind);
     len_1_ind = grabClistIndex(clist, 'Long axis (L) death');
@@ -287,7 +290,7 @@ else
     age_ind = grabClistIndex(clist, 'Cell age');
     age = clist.data(:,age_ind);
     growth_rate = (log(len_1) - log(len_0)) ./ age;
-    
+
 %     % add time
 %     clist = gateTool( clist, 'add3D', time, 'Time (Frames)' );
 %     % add age
@@ -296,11 +299,11 @@ else
 %     clist = gateTool( clist, 'add3D', age_rel, 'Relative Age' );
    %add growth rate
     clist = gateTool( clist, 'add', growth_rate, 'Growth Rate' );
-    
+
 
     clist.gate = CONST.trackLoci.gate;
     clist.neighbor = [];
-    
+
 
     if CONST.trackOpti.NEIGHBOR_FLAG
         clist.neighbor = trackOptiListNeighbor(dirname,CONST,[]);
@@ -320,7 +323,7 @@ function [setter,names_3dclist] = clistSetter ()
 % which it will be set (needs to be calculated in the first function, and
 % the third is 0 if it is set at birth and 1 if it is set at death.
 % the fourth column is for whether the variable should be included in the 3d clist.
-                        
+
 setter = [{'Cell ID'},{'ID'},0,1;
     {'Region num birth'},{'regnum'},0,0;
     {'Region num death'},{'regnum'},1,0;
@@ -391,6 +394,12 @@ setter = [{'Cell ID'},{'ID'},0,1;
     {'Fluor1 mean death'},{'fl1sum./Area'},1,0;
     {'Fluor2 sum death'},{'fl2sum'},1,0;
     {'Fluor2 mean death'},{'fl2sum./Area'},1,0;
+
+    % gchure added normalization variables 2018-02-19
+    {'Fluor1 bg death'},{'fl1bg'},1,0;
+    {'Fluor2 bg death'},{'fl2bg'},1,0;
+
+    % %%
     {'Focus1(1) long axis death'},{'locus1_L1'},1,0;
     {'Focus1(1) short axis death'},{'locus1_L2'},1,0;
     {'Focus1(1) score death'},{'locus1_s'},1,0;
